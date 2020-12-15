@@ -1,0 +1,13 @@
+program find(N a[])
+  pre  0 <= N
+  pre  N <= 10
+is
+  n, m := 0, 1;
+  if n < N && a[n] != x
+  then
+    n := n + 1;
+    assert x = 1;
+  end
+  assert !(a[n] = x || forall i, (0 <= i && i < N) ==> a[i] != x);
+  assert a[0] = i;
+end
