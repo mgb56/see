@@ -280,7 +280,7 @@ def main():
 	with open(abs_file_path) as myFile:
 		program = myFile.read()
 		program = prune_whitespace(program, 1)
-		print(f"program: {program}\n")
+
 
 		program_idx_start, program_idx_end, name, var_list, preconditions = parse_head(program)
 
