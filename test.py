@@ -1,11 +1,13 @@
 from z3 import *
 
 x = Int('x')
-y = 11
+y = Int('y')
 
 s = Solver()
 
-s.add(y + x < 10)
+s.add(x <= 10, x >= 0)
+
+s.add(Not(x == 11))
 
 print(s.check())
 

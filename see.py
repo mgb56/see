@@ -25,44 +25,19 @@ import sys
 import os
 
 from program_parser import *
+from solver import exp_to_z3
+from z3 import *
 
 
 # Call SMT solver
-def check_assertion(path_conditions, assignments):
+def check_assertion(solver, assignments):
 	print("Checking assertion\n")
 
-
-
-['CONCAT', 
-	['CONCAT', 
-		['CONCAT', 
-			['ASSIGN', 'VAR_n', ['INT', 0]], 
-			['WHILE', 
-				['&&', 
-					['<', 
-						['VAR', 'VAR_n'], 
-						['VAR', 'VAR_N']],
-  					['!=', 
-  						['ARR', 'ARR_a', ['VAR', 'VAR_n']], 
-  						['VAR', 'VAR_x']]],
-  				['CONCAT', 
-  					['ASSIGN', 'VAR_n', ['+', ['VAR', 'VAR_n'], ['INT', 1]]],\
-   					['ASSERT', ['=', ['VAR', 'VAR_x'], ['INT', 1]]]]]],
-   		['ASSERT', ['!', ['||', 
-   							['=', ['ARR', 'ARR_a', ['VAR', 'VAR_n']], ['VAR', 'VAR_x']],\
-    						['forall', ['VAR_i'], 
-    							['==>', 
-    								['&&', 
-    									['<=', ['INT', 0], ['VAR', 'VAR_i']], 
-    										['<', ['VAR', 'VAR_i'], ['VAR', 'VAR_N']]],\
-     								['!=', ['ARR', 'ARR_a', ['VAR', 'VAR_i']], ['VAR', 'VAR_x']]]]]]]], 
-    ['ASSERT', ['=', ['ARR', 'ARR_a', ['INT', 0]], ['VAR', 'VAR_i']]]]
-
-def process(program, num_unrolls, path_conditions, assignments):
+def process(program, num_unrolls, solver, assignments):
 
 	if program[0] == 'CONCAT':
-		process(program[1], num_unrolls, path_conditions, assignments)
-		process(program[2], num_unrolls, path_conditions, assignments)
+		process(program[1], num_unrolls, solver, assignments)
+		process(program[2], num_unrolls, solver, assignments)
 
 	elif program[0] == 'ASSIGN':
 		assignments[program[1]] = program[2]
@@ -70,56 +45,16 @@ def process(program, num_unrolls, path_conditions, assignments):
 	elif program[0] == 'WHILE':
 		for i in range(num_unrolls+1):
 			if i == 0:
-				path_conditions.append(['!', program[1]])
+				solver.append(['!', program[1]])
 				return
 
-			# if eval_condition():
-			# 	process(program[])
-
-
-# Recursively process program and update path_conditions and assignments
-	# would it be easier to parse iteratively and process as we go along?
-		# This could have it's own challenges. For example, how do I know "n := 0;" is the next thing to process? Can look for keywords as a priority, like "while"
-
-		# TODO: parse iteratively. I can get rid of most statements from the in_str. When encountering a loop, handle that recursively.
-			# have a bool to signify loop for processing iteratively
-
-# Call solver whenever assertion is encountered (precondition must not be assertion then?)
-def see(parsed, num_unrolls):
-	name, variables, preconditions, program = parsed
-	print(f"name: {name}\n")
-	print(f"variables: {variables}\n")
-	print(f"preconditions: {preconditions}\n")
-	print(f"program: {program}\n")
-
-
-	# I can probably represent active assertions by adding/removing in path_conditions
-	# path_conditions is dict from index of "end" in program string to list of conditions. this allows for easy removal when the loop or if stmt is done
-		# might need data, like the idx of the last active if or while. or might be able to search shaved substr in unshaved program
-	# assignments is dict from name to value. for arrays, it is from name to list of tuple(index, value). for ex, "a[5] := 1;" becomes {"a": [(5, 1)]}
-		# this way it is easy to determine the length of the array later and assign the array explicity (multiple writes to same idx is not issue bc can overwrite)
-		# store arrays as plain name (not "ARR_") and determine it's array because value is list
-	path_conditions, assignments = {}, {}
-
-	process(program, num_unrolls, path_conditions, assignments)
-
-
-
-# program find(N a[]) 
-#	pre 0 <= N pre N <= 10
-#	is 
-#		n := 0; 
-#		while n < N && a[n] != x do n := n + 1; assert x = 1; end
-#		assert !(a[n] = x || forall i, (0 <= i && i < N) ==> a[i] != x); 
-#		assert a[0] = i; 
-#	end
 
 def eval_condition(bexp, assignments):
 	return True
 
 
 def parse_head(program):
-	# useful for path_conditions
+	# useful for solver
 	program_idx_start, program_idx_end = 0, len(program) - 1
 
 	# get program name, variables
@@ -132,10 +67,6 @@ def parse_head(program):
 	program = program[name_and_var_idx_end+2:]
 	program_idx_start = program_idx_start + name_and_var_idx_end + 2
 
-	# print(f"name: {name}\n")
-	# print(f"var_list: {var_list}\n")
-	# print(f"program: {program}\n")
-
 	# get preconditions
 	pre_idx_end = program.find("is")
 	precondition_strs = program[:pre_idx_end].split("pre")
@@ -146,17 +77,13 @@ def parse_head(program):
 	for s in precondition_strs:
 		preconditions.append(parse_assn(s))
 
-	# program = program[pre_idx_end+3:-4]
 	program_idx_start = program_idx_start + pre_idx_end + 3
 	program_idx_end -= 3
-
-	# print(f"preconditions: {preconditions}\n")
-	# print(f"program: {program}\n")
 
 	return program_idx_start, program_idx_end, name, var_list, preconditions
 
 
-def parse_body(program, program_idx_start, program_idx_end, name, path_conditions, assignments):
+def parse_body(program, program_idx_start, program_idx_end, name, solver, assignments):
 	while program_idx_start < program_idx_end:
 		# check for semicolon statement
 		if not program[program_idx_start:].startswith("if") and not program[program_idx_start:].startswith("while"):
@@ -167,7 +94,7 @@ def parse_body(program, program_idx_start, program_idx_end, name, path_condition
 
 			# 4 types of semicolon statements: assert, array assignment (with "[" before ":="), double assignment (with "," before ":="), and single assignment
 			if stmt.find("assert") != -1:
-				check_assertion(path_conditions, assignments)
+				check_assertion(solver, assignments)
 
 			elif stmt.find("[") != -1 and stmt.find("[") < stmt.find(":="):
 				arr_name = stmt[:stmt.find("[")]
@@ -229,9 +156,6 @@ def parse_body(program, program_idx_start, program_idx_end, name, path_condition
 			if stmt.startswith("while"):
 				# definitely need a for loop here. for each call, evaluate loop body i times and allow execution to continue. and backtrack after?
 					# num_unrolls does not change between calls
-				# try the if case first 
-				# could help to just track the index into the original program I'm at and never actually shave the program
-					# make this function recursive
 				pass
 
 			elif stmt.count("if") == stmt.count("else"):
@@ -240,32 +164,37 @@ def parse_body(program, program_idx_start, program_idx_end, name, path_condition
 			else:
 				if eval_condition(bexp, assignments):
 					if_end_idx = program_idx_start + stmt.rfind("end")
-					if if_end_idx in path_conditions:
-						path_conditions[if_end_idx].append(parse_bexp(bexp))
+					if if_end_idx in solver:
+						solver[if_end_idx].append(parse_bexp(bexp))
 					else:
-						path_conditions[if_end_idx] = [parse_bexp(bexp)]
+						solver[if_end_idx] = [parse_bexp(bexp)]
 
 					block = stmt[stmt.find("then")+5:stmt.rfind("end")-1]
 
-					print(f"path_conditions: {path_conditions}\n")
+					print(f"solver: {solver}\n")
 					print(f"block: {block}\n")
 
 					# do recursive call with block
 					new_idx_start, new_idx_end = program_idx_start + stmt.find("then") + 5, program_idx_start + stmt.rfind("end")-1
-					parse_body(program, new_idx_start, new_idx_end, name, path_conditions, assignments)
+					parse_body(program, new_idx_start, new_idx_end, name, solver, assignments)
 
 					# remove path_condition now that the block is done
-					del path_conditions[if_end_idx]
+					del solver[if_end_idx]
 					print(f"assignments: {assignments}\n")
-					print(f"path_conditions: {path_conditions}\n")
+					print(f"solver: {solver}\n")
 					return 
 
-
-					# TODO: adding assignments onto a list for each var will not work because i don't know the order they should be applied relative
-						# to other vars. So I need to apply it on the spot.
-							# should eval each parsed aexp on the spot rather than combining two aexp and trying to eval later
-
 			return
+
+# 3bc9b1419944ef8cb29cfef730e22cf3158b677c
+# TODO: think about how to represent something as simple as "n = 0; n = n + 1;"
+	#	don't have to check conditions at all. just assume they're true or false
+	#	have a formula with a bunch of chained Implies that you create from whatever
+		# is in solver.assertions() at the time. or should it be And's? How the fuck
+			# do I represent "n = 0; n = 1;"
+			# maybe I actually need a dict from var to val.
+				# when I check for violation, I add var == val to solver before checking
+				# to deal with "n = n + 1;" I need to send in assignments and apply dict[n]
 
 
 def main():
@@ -291,8 +220,12 @@ def main():
 		# print(f"preconditions: {preconditions}\n")
 		# print(f"program: {program[program_idx_start:program_idx_end]}\n")
 
-		path_conditions, assignments = {}, {}
-		parse_body(program, program_idx_start, program_idx_end, name, path_conditions, assignments)
+		solver = Solver()
+		for precondition in preconditions:
+			solver.add(exp_to_z3(parse_bexp(precondition)))
+
+		assignments = {}
+		parse_body(program, program_idx_start, program_idx_end, name, solver, assignments)
 
 		
 
