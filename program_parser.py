@@ -71,7 +71,7 @@ def back_scan_for_phrases_outside_parens(scan_str, phrase_list):
 # assert back_scan_for_phrases_outside_parens("00<=0", ["<", "<="]) == (2, 4)
 # assert back_scan_for_phrases_outside_parens("00<=0", ["=", "<="]) == (2, 4)
 
-def parse_aexp(in_str):
+def parse_aexp(in_str, assignments=None, should_sub=False):
     # if DEBUG:
         # print(in_str)
     
@@ -104,7 +104,11 @@ def parse_aexp(in_str):
         return ["ARR", "ARR_"+in_str[:fb], parse_aexp(in_str[fb+1:lb])]
     for c in ["()+-*/%<>=![]"]:
         assert c not in in_str
-    return(["VAR", "VAR_"+in_str])
+
+    if should_sub and in_str in assignments:
+            return assignments[in_str]
+
+    return(["VAR", in_str])
 
 
 # assert parse_aexp("x+2*3%4") == ['+', ['VAR', 'VAR_x'], ['%', ['*', ['INT', 2], ['INT', 3]], ['INT', 4]]]
@@ -131,9 +135,8 @@ def parse_comp(in_str):
 
 
 def parse_bexp(in_str):
-    # if DEBUG:s
-        # print(in_str)
-    
+
+    # print(in_str)   
     in_str = prune_whitespace(in_str, 1)
     while in_str.startswith(" "):
         in_str = in_str[1:]
@@ -144,7 +147,7 @@ def parse_bexp(in_str):
         if in_str.startswith(quant + ' '):
             end_vars = in_str.find(",")
             start_vars = len(quant) + 1
-            quant_vars = ["VAR_" + v for v in in_str[start_vars:end_vars].split()]
+            quant_vars = [v for v in in_str[start_vars:end_vars].split()]
             return [quant, quant_vars, parse_bexp(in_str[end_vars+1:])]
 
     for char_list in [["==>"], ["||"], ["&&"]]:
@@ -364,10 +367,10 @@ def parse_statement_recursive(in_str):
             elif back_scan_for_phrases_outside_parens(current_stmt, [","]) is not None:
                 first_comma_idx = back_scan_for_phrases_outside_parens(current_stmt[:equal_pos], [","])[0]
                 second_comma_idx = back_scan_for_phrases_outside_parens(current_stmt, [","])[0]
-                ret = ["DUALASSIGN", "VAR_"+prune_whitespace(current_stmt[:first_comma_idx]),  "VAR_"+prune_whitespace(current_stmt[first_comma_idx+1:equal_pos]),
+                ret = ["DUALASSIGN", prune_whitespace(current_stmt[:first_comma_idx]),  "VAR_"+prune_whitespace(current_stmt[first_comma_idx+1:equal_pos]),
                         parse_aexp(current_stmt[equal_pos+2:second_comma_idx]),  parse_aexp(current_stmt[second_comma_idx+1:-2])]
             else:
-                ret = ["ASSIGN", "VAR_"+prune_whitespace(current_stmt[:equal_pos]), parse_aexp(current_stmt[equal_pos+2:-2])]
+                ret = ["ASSIGN", prune_whitespace(current_stmt[:equal_pos]), parse_aexp(current_stmt[equal_pos+2:-2])]
 
     if prev_stmt is None or prev_stmt.isspace():
         return ret
@@ -402,8 +405,8 @@ def parse_statement(in_str):
     return parsed_stmt
 
 
-with open(r"find_see.imp") as myFile:
-    test_program = myFile.read()
+# with open(r"find.imp") as myFile:
+#     test_program = myFile.read()
 
 
 # print(parse_statement(test_program))

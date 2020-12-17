@@ -7,7 +7,7 @@ s = Solver()
 
 s.add(x <= 10, x >= 0)
 
-s.add(Not(x == 11))
+s.add(Not(x == 11), True)
 
 print(s.check())
 
