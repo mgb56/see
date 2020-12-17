@@ -72,8 +72,7 @@ def back_scan_for_phrases_outside_parens(scan_str, phrase_list):
 # assert back_scan_for_phrases_outside_parens("00<=0", ["=", "<="]) == (2, 4)
 
 def parse_aexp(in_str, assignments=None, should_sub=False):
-    # if DEBUG:
-        # print(in_str)
+    # print(in_str)
     
     """
     Note: naive top-down parsing like this is O(n^2), but bottom-up is harder to implement, and we shouldn't see massive aexps
@@ -94,19 +93,19 @@ def parse_aexp(in_str, assignments=None, should_sub=False):
                     aexp1 = '0'
                 else:
                     raise NotImplementedError
-            return [op, parse_aexp(aexp1), parse_aexp(aexp2)]
+            return [op, parse_aexp(aexp1, assignments, should_sub), parse_aexp(aexp2, assignments, should_sub)]
     if in_str[0] == "(" and in_str[-1] == ")":
-        return parse_aexp(in_str[1:-1])
+        return parse_aexp(in_str[1:-1], assignments, should_sub)
     if in_str[0] in '0123456789':
         return(["INT", int(in_str)])
     fb, lb = in_str.find('['), in_str.rfind(']')
     if fb != -1 and lb != -1:  # Given brackets for a list index, process it as that
-        return ["ARR", "ARR_"+in_str[:fb], parse_aexp(in_str[fb+1:lb])]
+        return ["ARR", "ARR_"+in_str[:fb], parse_aexp(in_str[fb+1:lb], assignments, should_sub)]
     for c in ["()+-*/%<>=![]"]:
         assert c not in in_str
 
     if should_sub and in_str in assignments:
-            return assignments[in_str]
+        return assignments[in_str]
 
     return(["VAR", in_str])
 

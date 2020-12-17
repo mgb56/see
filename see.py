@@ -88,6 +88,8 @@ def check_assertion(solver, assignments, var_list, name):
 		else:
 			solver.add(Array(k, IntSort(), IntSort()) == v)
 
+	print("solver after adding assignments:", solver)
+
 	if solver.check() == sat:
 		vars_to_print = {}
 		m = solver.model()
@@ -186,25 +188,39 @@ def parse_body(program, num_unrolls, program_idx_start, program_idx_end, name, s
 
 			# 3 types: while, if with "else" (number of "else" matches number of "if"), and if
 			if stmt.startswith("while"):
-				# skip body
-				new_idx_start = end_idx + 6
-				solver.push()
-				solver.add(Not(bexp))
-				print("ABOUT TO RECURSE\n")
-				program_idx_start = parse_body(program, num_unrolls, new_idx_start, program_idx_end, name, solver, assignments, var_list)
-				solver.pop()
-				print("DONE WITH SKIPPING\n")
+				if num_unrolls == 0:
+					# skip body
+					new_idx_start = end_idx + 6
+					solver.push()
+					solver.add(Not(bexp))
+					print("ABOUT TO RECURSE, num_unrolls == 0\n")
+					# mixing this call up with the extra call at the bottom. can probably just adjust program_idx_start and skip this call?
+					# the issue comes from the attempt to optimize the num_unrolls == 0 vs != 0 case maybe
+					program_idx_start = parse_body(program, num_unrolls, new_idx_start, program_idx_end, name, solver, assignments, var_list)
+					solver.pop()
+					print("DONE WITH SKIPPING, num_unrolls == 0\n")
 
 				if num_unrolls != 0:
+					# skip body
+					new_idx_start = end_idx + 6
+					solver.push()
+					solver.add(Not(bexp))
+					print("ABOUT TO RECURSE, num_unrolls != 0\n")
+					# mixing this call up with the extra call at the bottom. can probably just adjust program_idx_start and skip this call?
+					# the issue comes from the attempt to optimize the num_unrolls == 0 vs != 0 case maybe
+					parse_body(program, num_unrolls, new_idx_start, program_idx_end, name, solver, assignments, var_list)
+					solver.pop()
+					print("DONE WITH SKIPPING, num_unrolls != 0\n")
 					# eval body num_unrolls times
 					new_idx_start = program_idx_start + stmt.find("do") + 3
-					for i in range(num_unrolls):
+					for _ in range(num_unrolls):
 						solver.push()
 						solver.add(bexp)
 						parse_body(program, num_unrolls, new_idx_start, end_idx, name, solver, assignments, var_list)
 						solver.pop()
 
-				# program_idx_start = end_idx + 6	
+					solver.add(bexp)
+					program_idx_start = end_idx + 6	
 
 			elif stmt.count("if") == stmt.count("else"):
 				# eval else
@@ -212,11 +228,13 @@ def parse_body(program, num_unrolls, program_idx_start, program_idx_end, name, s
 				solver.push()
 				solver.add(Not(bexp))
 				parse_body(program, num_unrolls, new_idx_start, end_idx, name, solver, assignments, var_list)
-				solver.pop()
+				# solver.pop()
 
 				if num_unrolls != 0:
 					# eval then
-					# find index of matching else (for END_IDX)
+					# match pop with push in eval else part
+					solver.pop()
+					# find index of matching else (for end_idx)
 					else_idx = None
 					num_if, num_else = 1, 0
 					tmp_idx = program_idx_start + stmt.find("then") + 5
@@ -233,10 +251,10 @@ def parse_body(program, num_unrolls, program_idx_start, program_idx_end, name, s
 						tmp_idx += 1
 
 					new_idx_start = program_idx_start + stmt.find("then") + 5
-					solver.push()
+					# solver.push()
 					solver.add(bexp)
 					parse_body(program, num_unrolls, new_idx_start, else_idx - 1, name, solver, assignments, var_list)
-					solver.pop()
+					# solver.pop()
 
 				program_idx_start = end_idx + 6
 
@@ -266,7 +284,7 @@ def parse_body(program, num_unrolls, program_idx_start, program_idx_end, name, s
 
 	return program_idx_start
 
-# 3bc9b1419944ef8cb29cfef730e22cf3158b677c
+# 5e87e80039eee550710d784b819f6acecab674f1
 # TODO: think about how to represent something as simple as "n = 0; n = n + 1;"
 	#	don't have to check conditions at all. just assume they're true or false
 	#	have a formula with a bunch of chained Implies that you create from whatever
@@ -301,8 +319,16 @@ def main():
 		# print(f"program: {program[program_idx_start:program_idx_end]}\n")
 
 		solver = Solver()
+		solver.push()
 		for precondition in preconditions:
 			solver.add(exp_to_z3(precondition))
+
+		if solver.check() == sat:
+			m = solver.model()
+			solver.pop()
+			for d in m.decls():
+				solver.add(Int(d.name()) == m[d])
+
 
 		assignments = {}
 		parse_body(program, int(sys.argv[2]), program_idx_start, program_idx_end, name, solver, assignments, var_list)
