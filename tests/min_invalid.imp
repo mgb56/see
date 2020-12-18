@@ -1,0 +1,16 @@
+program min(N a[])
+	pre 0 <= N
+is
+	i := 0;
+	n := 0;
+	while i < N
+	do
+		if a[i] < n
+		then
+			n := a[i];
+		end
+		i := i + 1;
+	end
+	assert forall i, (0 <= i && i < N) ==> n <= a[i];
+	assert exists i, 0 <= i && i < N && n = a[i];
+end

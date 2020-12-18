@@ -1,0 +1,8 @@
+program find(N)
+  pre  0 <= N
+  pre  N <= 10
+is
+  n := 0;
+  n := N+1;
+  assert N=1;
+end

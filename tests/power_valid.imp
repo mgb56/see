@@ -1,0 +1,13 @@
+program power(n b)
+    pre n >= 0
+is
+  f[0] := 1;
+  k := 1;
+  while k < n+1
+  do
+    f[k] := b * f[k-1];
+    k := k+1;
+  end
+  assert k = n+1;
+  assert forall x, (x>0 && x < n+1) ==> f[x] = b * f[x-1];
+end

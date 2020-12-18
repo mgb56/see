@@ -1,0 +1,12 @@
+program multiply(m n) 
+	pre n >= 0 
+is
+	p := 0;
+	x := 1;
+	while x < n
+	do
+	  x := x + 1;
+	  p := p + m;
+	end
+	assert p = n * m;
+end
