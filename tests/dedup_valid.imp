@@ -1,0 +1,16 @@
+program dedup(n a[])
+  pre n >= 0
+is
+  sidx := 0;
+  while sidx < n
+  do
+    intermidx := 0;
+    while intermidx < sidx
+    do
+      if a[intermidx] = a[sidx] then a[sidx] := 0; end
+      intermidx := intermidx + 1;
+    end
+    sidx := sidx + 1;
+  end
+  assert forall i j, (i >= 0 && i < n && j >= 0 && j < n && i < j) ==> (a[i] != a[j] || a[j] = 0);
+end

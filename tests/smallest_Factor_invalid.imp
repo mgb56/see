@@ -1,0 +1,10 @@
+program smallest_factor(n)
+    pre n > 0
+is
+  f := 1;
+  while !(n % f == 0)
+  do
+    f := f + 1;
+  end
+  assert n % f == 0 && f > 1;
+end
