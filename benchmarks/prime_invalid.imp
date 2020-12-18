@@ -1,0 +1,6 @@
+program prime(n)
+  pre n = 4
+is
+
+  assert (forall i, i > 0 ==> n % i != 0);
+end
